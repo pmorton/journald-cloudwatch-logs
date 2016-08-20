@@ -51,22 +51,16 @@ func run(configFilename string) error {
 	defer journal.Close()
 
 	AddLogFilters(journal, config)
-
-	state, err := OpenState(config.StateFilename)
+	fmt.Println("%s", config.StateFilename)
+	state, err := OpenState("state")
 	if err != nil {
 		return fmt.Errorf("Failed to open %s: %s", config.StateFilename, err)
 	}
 
 	lastBootId, nextSeq := state.LastState()
 
-	awsSession := config.NewAWSSession()
+	writer, err := NewWriter()
 
-	writer, err := NewWriter(
-		awsSession,
-		config.LogGroupName,
-		config.LogStreamName,
-		nextSeq,
-	)
 	if err != nil {
 		return fmt.Errorf("error initializing writer: %s", err)
 	}
@@ -107,7 +101,7 @@ func run(configFilename string) error {
 	records := make(chan *Record)
 	batches := make(chan []Record)
 
-	go ReadRecords(config.EC2InstanceId, journal, records, skip)
+	go ReadRecords(journal, records, skip)
 	go BatchRecords(records, batches, bufSize)
 
 	for batch := range batches {
